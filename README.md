@@ -48,6 +48,31 @@ Or, just double-click `index.html` to open it directly in Chrome/Edge/Firefox.
 - Left wall has a colored wainscot with chair rail and baseboard for visual interest.
 - Door removed from the scene per latest request.
 
+### New in this version: Actors and props
+
+- Mother character near the stove, wearing a daily-use dress and apron. Rising steam particles over the pan.
+- Extra utensils near the cooktop (spatula, lid) for cooking context.
+- Two kids seated at the dining table with plates of snacks and cups. Light head-nod and hand-to-mouth nibble animation.
+
+Customization hints (in `assets/js/main.js`):
+
+- Change mother placement: search for `createMother(` and adjust `momX`, `momZ`.
+- Adjust kids’ chairs: look for `kid1Seat` / `kid2Seat` and related `placeLocalToWorld` calls.
+- Snack variety: tweak `addPlateWithSnacks()` to add fruit or different shapes/colors.
+
+### Latest updates (October 2025)
+
+- Mother stands clearly in front of the opposite-side counter and faces the cooking area.
+- Indian skin tones applied to mother and kids; more human facial features for mother (eyes, ears, nose, mouth) and hair (cap, bun, side strands).
+- Arm control switched to an IK-based pose targeting a fixed point just above the bowl. Hand/wrist kept straight and steady (no stirring motion) as requested.
+- Additional cooking context: mixing bowl with ingredients, chopping board with veggies, measuring cup on the counter.
+
+Tweak the static pose/target (in `assets/js/main.js`):
+
+- Fixed target height above bowl: search for `workTarget` and adjust the `+ new THREE.Vector3(0, 0.07, 0)` value.
+- Move the bowl if needed: look for `addCookingContainers()` and change the `bowl.position.set(...)` coordinates.
+- Re-enable motion: set `actorAnim.mother.staticPose = false` and (optionally) restore the circular stir target.
+
 ## Technical notes
 
 - Three.js r128 and OrbitControls are loaded from CDNs to keep setup simple.

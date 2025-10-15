@@ -2,6 +2,19 @@
 let scene, renderer, camera, controls;
 let raycaster, mouse;
 
+// --- Simple animation state for actors ---
+const actorAnim = {
+  mother: {
+    group: null,
+    rightArmPivot: null,
+    leftArmPivot: null,
+    spatula: null,
+    baseTarget: new THREE.Vector3(),
+  },
+  steam: [], // particles above pan
+  kids: [],  // { group, headPivot, handPivot, plate, snack }
+};
+
 const width = window.innerWidth;
 const height = window.innerHeight;
 const aspect = width / height;
@@ -541,6 +554,20 @@ function buildKitchenette() {
   pan.position.set(sideRunX, counterTopY + 0.05, sideRunZ + 0.5);
   scene.add(pan);
 
+  // Steam particles above pan (simple translucent spheres)
+  (function createSteam() {
+    const steamMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.35, roughness: 1.0 });
+    for (let i = 0; i < 10; i++) {
+      const s = new THREE.Mesh(new THREE.SphereGeometry(0.04 + Math.random()*0.03, 10, 8), steamMat.clone());
+      s.position.set(pan.position.x + (Math.random()-0.5)*0.18, pan.position.y + 0.02, pan.position.z + (Math.random()-0.5)*0.18);
+      s.userData.base = s.position.clone();
+      s.userData.speed = 0.12 + Math.random()*0.08;
+      s.userData.phase = Math.random()*Math.PI*2;
+      actorAnim.steam.push(s);
+      scene.add(s);
+    }
+  })();
+
   // Range Hood
   const hood = createComponent(new THREE.BoxGeometry(1.5, 1.0, 0.8), matAppliance, new THREE.Vector3(sideRunX, 4.0, sideRunZ), "Range Hood", {
     description: "Ventilation hood.",
@@ -564,6 +591,59 @@ function buildKitchenette() {
   ovenHandle.rotation.z = Math.PI/2;
   ovenHandle.position.set(sideRunX, 0.7, sideRunZ + 0.45);
   scene.add(ovenHandle);
+
+  // Extra utensils near stove (spatula and lid on counter)
+  (function addExtraUtensils() {
+    const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.22, 10), matWoodDark);
+    handle.rotation.z = Math.PI/2;
+    handle.position.set(sideRunX - 0.35, counterTopY + 0.07, sideRunZ + 0.35);
+    const blade = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.02, 0.06), matApplianceBlack);
+    blade.position.set(0.1, 0, 0);
+    handle.add(blade);
+    scene.add(handle);
+
+    const lid = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.22, 0.015, 24), matChrome);
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(0.025, 12, 10), matChrome);
+    knob.position.y = 0.02;
+    lid.add(knob);
+    lid.position.set(sideRunX + 0.35, counterTopY + 0.065, sideRunZ - 0.35);
+    scene.add(lid);
+  })();
+
+  // Cooking containers and ingredients near the stove for realism
+  (function addCookingContainers() {
+    // Mixing bowl with ingredients
+  const bowl = new THREE.Mesh(new THREE.SphereGeometry(0.16, 24, 16, 0, Math.PI*2, 0, Math.PI/2), matApplianceWhite);
+    bowl.rotation.x = Math.PI; // open up
+  // Place bowl near the counter edge closest to the mother
+  bowl.position.set(sideRunX - cabinetDepth/2 + 0.15, counterTopY + 0.1, sideRunZ + 0.18);
+    scene.add(bowl);
+  // Use bowl as mother's work target
+  actorAnim.mother.workTarget = bowl.position.clone();
+    // Ingredients inside bowl
+    for (let i = 0; i < 6; i++) {
+      const ing = new THREE.Mesh(new THREE.SphereGeometry(0.03 + Math.random()*0.01, 12, 10), new THREE.MeshStandardMaterial({ color: [0xE57373, 0xFFD54F, 0x81C784, 0x64B5F6][i%4], roughness: 0.7 }));
+      ing.position.set(bowl.position.x + (Math.random()-0.5)*0.18, bowl.position.y + 0.02, bowl.position.z + (Math.random()-0.5)*0.18);
+      scene.add(ing);
+    }
+    // Small cutting board with chopped veggies
+    const board = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.03, 0.22), matWoodDark);
+    board.position.set(sideRunX + 0.55, counterTopY + 0.065, sideRunZ + 0.15);
+    scene.add(board);
+    for (let i = 0; i < 8; i++) {
+      const piece = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.02, 0.04), new THREE.MeshStandardMaterial({ color: [0xFF7043, 0x8BC34A, 0xFFEB3B][i%3] }));
+      piece.position.set(board.position.x + (Math.random()-0.5)*0.28, board.position.y + 0.025, board.position.z + (Math.random()-0.5)*0.16);
+      scene.add(piece);
+    }
+    // Measuring cup
+    const cupOuter = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.12, 16), matGlass);
+    const cupHandle = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.012, 10, 20, Math.PI/1.2), matApplianceBlack);
+    cupHandle.rotation.y = Math.PI/2;
+    cupHandle.position.set(0.06, 0, 0);
+    cupOuter.add(cupHandle);
+    cupOuter.position.set(sideRunX + 0.25, counterTopY + 0.07, sideRunZ - 0.35);
+    scene.add(cupOuter);
+  })();
 
   // Upper Cabinets
   const upperCabinet1 = createComponent(new THREE.BoxGeometry(2, 1.2, 1), matCabinetUpper, new THREE.Vector3(-roomWidth/2 + 3, 3.8, backRunZ), "Upper Cabinet", {desc:"Two-tone scheme", specs:"Color: Warm White"});
@@ -1012,6 +1092,297 @@ function buildKitchenette() {
   faceTowardPoint(rightFar, rightFarPos, leftFarPos);
 
   scene.add(head); scene.add(foot); scene.add(leftNear); scene.add(leftFar); scene.add(rightNear); scene.add(rightFar);
+
+  // --- Mother actor near the stove ---
+  function createMother(x, z, faceTarget) {
+    const group = new THREE.Group();
+
+    // Colors
+  const skin = new THREE.MeshStandardMaterial({ color: 0xC68642, roughness: 0.6, metalness: 0.0 }); // Indian skin tone
+    const dressTop = new THREE.MeshStandardMaterial({ color: 0x6D86A6, roughness: 0.85 }); // muted blue top
+    const dressSkirt = new THREE.MeshStandardMaterial({ color: 0xB56576, roughness: 0.85 }); // rose skirt
+    const apron = new THREE.MeshStandardMaterial({ color: 0xFFF5E1, roughness: 0.92 }); // off-white apron
+  const hairMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.5 });
+
+  // Legs (longer for taller height)
+  const legLen = 1.0;
+  const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, legLen, 12), dressSkirt);
+  const legR = legL.clone();
+  legL.position.set(-0.12, legLen/2, 0.05);
+  legR.position.set( 0.12, legLen/2, 0.05);
+  group.add(legL, legR);
+  // Simple shoes
+  const shoeL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.06, 0.3), new THREE.MeshStandardMaterial({ color: 0x303030, roughness: 0.6 }));
+  const shoeR = shoeL.clone();
+  shoeL.position.set(-0.12, 0.03, 0.12);
+  shoeR.position.set( 0.12, 0.03, 0.12);
+  group.add(shoeL, shoeR);
+
+    // Skirt (slightly flared)
+  const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.36, 0.5, 16), dressSkirt);
+  skirt.position.set(0, legLen + 0.25, 0);
+    group.add(skirt);
+
+    // Torso
+  const torso = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.55, 0.24), dressTop);
+  torso.position.set(0, legLen + 0.55, 0);
+    group.add(torso);
+  // Shoulders bar for more human silhouette
+  const shoulders = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.12, 0.26), dressTop);
+  shoulders.position.set(0, legLen + 0.82, 0);
+  group.add(shoulders);
+
+    // Apron front panel and straps
+  const apronPanel = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.52, 0.02), apron);
+  apronPanel.position.set(0, legLen + 0.55, 0.135);
+  const apronTop = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.02), apron);
+  apronTop.position.set(0, legLen + 0.8, 0.135);
+    const strapL = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.35, 0.02), apron);
+    const strapR = strapL.clone();
+  strapL.position.set(-0.24, legLen + 0.65, 0.08);
+  strapR.position.set( 0.24, legLen + 0.65, 0.08);
+  // Apron waist tie
+  const waist = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.04, 0.02), apron);
+  waist.position.set(0, legLen + 0.52, 0.12);
+  group.add(waist);
+    group.add(apronPanel, apronTop, strapL, strapR);
+
+    // Head
+  const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.1, 12), skin);
+  neck.position.set(0, legLen + 0.95, 0);
+  group.add(neck);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 12), skin);
+  head.position.set(0, legLen + 1.1, 0);
+    group.add(head);
+  // Hair cap and bun with side strands
+  const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.19, 18, 14, 0, Math.PI*2, 0, Math.PI/1.8), hairMat);
+  hairCap.position.set(0, legLen + 1.1, -0.01);
+  group.add(hairCap);
+  const hairBun = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 12), hairMat);
+  hairBun.position.set(0, legLen + 1.24, -0.06);
+  group.add(hairBun);
+  const strandL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.18, 0.04), hairMat);
+  const strandR = strandL.clone();
+  strandL.position.set(-0.12, legLen + 1.03, 0.08);
+  strandR.position.set( 0.12, legLen + 1.03, 0.08);
+  group.add(strandL, strandR);
+  // Simple eyes
+  const eyeMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.7 });
+  const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), eyeMat);
+  const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), eyeMat);
+  eyeL.position.set(-0.06, legLen + 1.12, 0.15);
+  eyeR.position.set( 0.06, legLen + 1.12, 0.15);
+  group.add(eyeL, eyeR);
+  // Ears
+  const earL = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), skin);
+  const earR = earL.clone();
+  earL.position.set(-0.2, legLen + 1.1, 0.0);
+  earR.position.set( 0.2, legLen + 1.1, 0.0);
+  group.add(earL, earR);
+  // Nose & mouth
+  const nose = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.06, 10), skin);
+  nose.rotation.x = Math.PI/2;
+  nose.position.set(0, legLen + 1.1, 0.17);
+  group.add(nose);
+  const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.02, 0.01), new THREE.MeshStandardMaterial({ color: 0x8d3a3a, roughness: 0.7 }));
+  mouth.position.set(0, legLen + 1.06, 0.175);
+  group.add(mouth);
+    // Hair bun
+    const bun = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 12), hairMat);
+    bun.position.set(0, 1.9, -0.05);
+    group.add(bun);
+
+    // Arms with pivots for animation
+  const shoulderY = legLen + 0.82;
+  const upperLen = 0.38, foreLen = 0.34;
+  const upperGeo = new THREE.BoxGeometry(0.1, upperLen, 0.1);
+  const foreGeo = new THREE.BoxGeometry(0.09, foreLen, 0.09);
+  // Right arm with elbow
+  const rightPivot = new THREE.Group();
+  rightPivot.position.set(0.26, shoulderY, 0.02);
+  const upperR = new THREE.Mesh(upperGeo, dressTop);
+  upperR.position.y = -upperLen/2;
+  rightPivot.add(upperR);
+  const elbowR = new THREE.Group();
+  elbowR.position.set(0, -upperLen, 0);
+  const foreR = new THREE.Mesh(foreGeo, dressTop);
+  foreR.position.y = -foreLen/2;
+  elbowR.add(foreR);
+  // Wrist pivot
+  const wristR = new THREE.Group();
+  wristR.position.set(0, -foreLen, 0);
+  // Right hand and spatula
+  const handR = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), skin);
+  handR.position.set(0, 0, 0);
+  wristR.add(handR);
+  const handle = new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.34, 10), matWoodDark);
+  handle.rotation.z = Math.PI/2;
+  handle.position.set(0.14, -0.02, 0.0);
+  const blade = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.02, 0.08), matApplianceBlack);
+  blade.position.x = 0.12;
+  handle.add(blade);
+  wristR.add(handle);
+  elbowR.add(wristR);
+  rightPivot.add(elbowR);
+
+  // Left arm (idle) with elbow
+  const leftPivot = new THREE.Group();
+  leftPivot.position.set(-0.26, shoulderY, 0.02);
+  const upperL = new THREE.Mesh(upperGeo, dressTop); upperL.position.y = -upperLen/2; leftPivot.add(upperL);
+  const elbowL = new THREE.Group(); elbowL.position.set(0, -upperLen, 0);
+  const foreL = new THREE.Mesh(foreGeo, dressTop); foreL.position.y = -foreLen/2; elbowL.add(foreL);
+  const handL = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), skin); handL.position.set(0, -foreLen, 0); elbowL.add(handL);
+  leftPivot.add(elbowL);
+
+    group.add(rightPivot, leftPivot);
+
+    group.position.set(x, 0, z);
+    // Face toward target (cooktop)
+    if (faceTarget) {
+      const dx = faceTarget.x - x;
+      const dz = faceTarget.z - z;
+      group.rotation.y = Math.atan2(dx, dz);
+    }
+
+    // Store animation references
+    actorAnim.mother.group = group;
+  actorAnim.mother.rightArmPivot = rightPivot;
+  actorAnim.mother.rightElbowPivot = elbowR;
+  actorAnim.mother.wristPivot = wristR;
+  actorAnim.mother.leftArmPivot = leftPivot;
+  actorAnim.mother.spatula = handle;
+  actorAnim.mother.upperLen = upperLen;
+  actorAnim.mother.foreLen = foreLen;
+    actorAnim.mother.baseTarget.copy(faceTarget || new THREE.Vector3());
+  actorAnim.mother.staticPose = true; // keep hand straight and still
+
+    // Info metadata (invisible helper)
+    const comp = createComponent(new THREE.BoxGeometry(0.7, 2.0, 0.7), dressTop, new THREE.Vector3(x, 1.0, z), "Mother (Cooking)", {
+      description: "Mother wearing a daily dress and apron, stirring the pan at the stove.",
+      specs: "Pose: Stirring | Props: Spatula, Pan with steam"
+    });
+    comp.visible = false;
+    group.userData = comp.userData;
+    scene.add(comp);
+
+    return group;
+  }
+
+  // Place mother slightly in front of cooktop, facing it
+  // Place mother on the opposite side of the countertop (across from previous position)
+  // Ensure she stands outside (in front of) the cabinet face on the opposite side
+  const momX = sideRunX - cabinetDepth/2 - 0.5; // add clear margin from counter edge
+  const momZ = sideRunZ + 0.3; // slight z offset to align with pan area
+  const mother = createMother(momX, momZ, (actorAnim.mother.workTarget ? actorAnim.mother.workTarget : new THREE.Vector3(sideRunX, 1.3, sideRunZ)));
+  scene.add(mother);
+
+  // --- Snacks on dining table + kids sitting ---
+  function addPlateWithSnacks(px, pz) {
+    const group = new THREE.Group();
+    const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.02, 24), new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.8 }));
+    plate.position.y = 0.92; // table height 0.9 + small
+    group.add(plate);
+    // cookies / chips
+    for (let i = 0; i < 5; i++) {
+      const snack = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.02, 12), new THREE.MeshStandardMaterial({ color: 0xd2a679, roughness: 0.7 }));
+      snack.position.set((Math.random()-0.5)*0.18, 0.94, (Math.random()-0.5)*0.18);
+      group.add(snack);
+    }
+    // cup
+    const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.12, 16), matApplianceWhite);
+    cup.position.set(0.18, 0.97, 0.02);
+    group.add(cup);
+    group.position.set(px, 0, pz);
+    scene.add(group);
+    return group;
+  }
+
+  function createKid(sitting=true, scheme) {
+    const group = new THREE.Group();
+    const skin = new THREE.MeshStandardMaterial({ color: (scheme?.skin ?? 0xD1A074), roughness: 0.6 }); // Indian skin default
+    const shirt = new THREE.MeshStandardMaterial({ color: (scheme?.shirt ?? 0x4f83cc), roughness: 0.85 });
+    const pants = new THREE.MeshStandardMaterial({ color: (scheme?.pants ?? 0x303f4f), roughness: 0.8 });
+    const hair = new THREE.MeshStandardMaterial({ color: (scheme?.hair ?? 0x3a2a1c), roughness: 0.6 });
+
+    // Torso and hips
+    const hips = new THREE.Mesh(new THREE.BoxGeometry(0.25, 0.18, 0.2), pants);
+    hips.position.y = 0.58; // just above seat height
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.3, 0.18), shirt);
+    torso.position.y = 0.8;
+    group.add(hips, torso);
+
+    // Head with simple pivot for nod
+    const headPivot = new THREE.Group();
+    headPivot.position.set(0, 0.98, 0);
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.14, 14, 12), skin);
+    head.position.y = 0.08;
+    const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.145, 14, 12, 0, Math.PI*2, 0, Math.PI/2), hair);
+    hairCap.position.y = 0.1;
+    headPivot.add(head);
+    headPivot.add(hairCap);
+    group.add(headPivot);
+  // Simple eyes
+  const eyeMatK = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.7 });
+  const eyeKL = new THREE.Mesh(new THREE.SphereGeometry(0.018, 10, 8), eyeMatK);
+  const eyeKR = new THREE.Mesh(new THREE.SphereGeometry(0.018, 10, 8), eyeMatK);
+  // place eyes relative to group (approx head position in world)
+  eyeKL.position.set(-0.05, 1.04, 0.12);
+  eyeKR.position.set( 0.05, 1.04, 0.12);
+  group.add(eyeKL, eyeKR);
+
+    // Arms (right hand with snack)
+    const armGeo = new THREE.BoxGeometry(0.08, 0.22, 0.08);
+    const rightPivot = new THREE.Group(); rightPivot.position.set(0.18, 0.84, 0);
+    const right = new THREE.Mesh(armGeo, shirt); right.position.y = -0.11; rightPivot.add(right);
+    const snack = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.02, 10), new THREE.MeshStandardMaterial({ color: 0xd2a679 }));
+    snack.position.set(0, -0.23, 0.02);
+    rightPivot.add(snack);
+    const leftPivot = new THREE.Group(); leftPivot.position.set(-0.18, 0.84, 0);
+    const left = new THREE.Mesh(armGeo, shirt); left.position.y = -0.11; leftPivot.add(left);
+    group.add(rightPivot, leftPivot);
+
+    // Legs dangling
+    const legGeo = new THREE.BoxGeometry(0.09, 0.32, 0.09);
+    const legL = new THREE.Mesh(legGeo, pants); legL.position.set(-0.08, 0.42, 0.03);
+    const legR = new THREE.Mesh(legGeo, pants); legR.position.set( 0.08, 0.42, 0.03);
+    group.add(legL, legR);
+
+    // Store for animation
+    actorAnim.kids.push({ group, headPivot, handPivot: rightPivot, snack });
+
+    // Info helper
+    const comp = createComponent(new THREE.BoxGeometry(0.4, 1.2, 0.4), shirt, new THREE.Vector3(0, 0.8, 0), "Kid (Eating)", {
+      description: "Child seated at the dining chair enjoying snacks.",
+      specs: "Snack: Cookies/Chips | Drink: Cup"
+    });
+    comp.visible = false; group.userData = comp.userData; scene.add(comp);
+
+    return group;
+  }
+
+  // Choose two opposite chairs (leftNear and rightNear) for the kids
+  // Compute simple seat-top world positions slightly pulled toward the table
+  function toward(ax, az, bx, bz, d) { // move point A toward B by distance d
+    const vx = bx - ax, vz = bz - az; const len = Math.hypot(vx, vz) || 1;
+    return { x: ax + vx/len * d, z: az + vz/len * d };
+  }
+
+  const kid1Seat = toward(leftNearPos.x, leftNearPos.z, tableX, tableZ, 0.18);
+  const kid2Seat = toward(rightNearPos.x, rightNearPos.z, tableX, tableZ, 0.18);
+
+  // Two different outfits and skin tones for variety
+  const kid1Scheme = { shirt: 0xFF7043, pants: 0x455A64, skin: 0xD1A074, hair: 0x3b2f2f };
+  const kid2Scheme = { shirt: 0x66BB6A, pants: 0x263238, skin: 0x8D5524, hair: 0x2b2b2b };
+  const kid1 = createKid(true, kid1Scheme); kid1.position.set(kid1Seat.x, 0, kid1Seat.z); faceTowardCenter(kid1, kid1Seat);
+  const kid2 = createKid(true, kid2Scheme); kid2.position.set(kid2Seat.x, 0, kid2Seat.z); faceTowardCenter(kid2, kid2Seat);
+  scene.add(kid1, kid2);
+
+  // Place plates and snacks in front of them on the table
+  const plateOffset = 0.35;
+  const kid1PlatePos = placeLocalToWorld(-longSeatOffset, -(shortHalf - 0.05));
+  const kid2PlatePos = placeLocalToWorld(-longSeatOffset,  (shortHalf - 0.05));
+  addPlateWithSnacks(kid1PlatePos.x, kid1PlatePos.z);
+  addPlateWithSnacks(kid2PlatePos.x, kid2PlatePos.z);
 }
 
 // --- Interaction Handlers ---
@@ -1073,6 +1444,76 @@ function animate() {
 
   // Update controls for smooth damping effect
   controls.update();
+
+  // --- Lightweight character animations ---
+  // Mother arm control: static straight pose toward bowl (no motion)
+  if (actorAnim.mother.rightArmPivot) {
+    const t = performance.now() * 0.001;
+    const shoulder = actorAnim.mother.rightArmPivot;
+    const elbow = actorAnim.mother.rightElbowPivot;
+    const wrist = actorAnim.mother.wristPivot;
+    const group = actorAnim.mother.group;
+    const L1 = actorAnim.mother.upperLen || 0.38;
+    const L2 = actorAnim.mother.foreLen || 0.34;
+
+    if (group && shoulder && elbow && wrist && actorAnim.mother.workTarget) {
+      const staticPose = actorAnim.mother.staticPose === true;
+      // Fixed target just above bowl center
+      const targetWorld = actorAnim.mother.workTarget.clone().add(new THREE.Vector3(0, 0.07, 0));
+      const targetLocal = group.worldToLocal(targetWorld.clone());
+
+      // Vector from shoulder (local) to target (local)
+      const shoulderLocal = shoulder.position.clone();
+      const v = targetLocal.clone().sub(shoulderLocal);
+
+      // Yaw towards target in XZ plane
+      const yaw = Math.atan2(v.x, v.z);
+      shoulder.rotation.y = yaw;
+
+      const s = Math.hypot(v.x, v.z); // horizontal distance
+      const dy = v.y;                 // vertical difference
+      let d = Math.hypot(s, dy);
+      d = Math.min(L1 + L2 - 0.001, Math.max(0.05, d));
+
+      const angleToTarget = Math.atan2(dy, s);
+      const cosElb = THREE.MathUtils.clamp((L1*L1 + L2*L2 - d*d) / (2*L1*L2), -1, 1);
+      const elbowAngle = Math.PI - Math.acos(cosElb);
+      const cosSh = THREE.MathUtils.clamp((d*d + L1*L1 - L2*L2) / (2*d*L1), -1, 1);
+      const shoulderInner = Math.acos(cosSh);
+      const shoulderPitch = angleToTarget + shoulderInner;
+
+      // Apply pose once or keep steady each frame (no oscillation)
+      shoulder.rotation.x = shoulderPitch;
+      elbow.rotation.x = elbowAngle;
+      wrist.rotation.set(-1.3, 0, 0); // straight, pitched down toward bowl
+    }
+  }
+
+  // Steam rising animation
+  if (actorAnim.steam.length) {
+    const dt = 0.016; // approx frame step
+    actorAnim.steam.forEach(s => {
+      const wobble = Math.sin(performance.now()*0.002 + s.userData.phase) * 0.0025;
+      s.position.y += s.userData.speed * dt;
+      s.position.x += wobble;
+      s.position.z += wobble * 0.7;
+      const life = (s.position.y - s.userData.base.y) / 0.25;
+      const mat = s.material; mat.opacity = Math.max(0, 0.35 * (1 - life));
+      if (s.position.y > s.userData.base.y + 0.25) {
+        s.position.copy(s.userData.base);
+        mat.opacity = 0.35;
+      }
+    });
+  }
+
+  // Kids: tiny head nod and one hand-to-mouth nibble motion
+  if (actorAnim.kids.length) {
+    const t = performance.now() * 0.001;
+    actorAnim.kids.forEach((k, idx) => {
+      if (k.headPivot) k.headPivot.rotation.x = Math.sin(t * (1.2 + idx*0.1)) * 0.06;
+      if (k.handPivot) k.handPivot.rotation.x = -0.2 + Math.sin(t * (1.5 + idx*0.3)) * 0.25;
+    });
+  }
 
   // Render the scene from the camera's perspective
   renderer.render(scene, camera);
