@@ -60,6 +60,9 @@ Customization hints (in `assets/js/main.js`):
 - Adjust kids’ chairs: look for `kid1Seat` / `kid2Seat` and related `placeLocalToWorld` calls.
 - Snack variety: tweak `addPlateWithSnacks()` to add fruit or different shapes/colors.
 
+  <img width="1904" height="837" alt="image" src="https://github.com/user-attachments/assets/5e7a801d-3262-4a62-9eaa-f89ce634edab" />
+
+
 ### Latest updates (October 2025)
 
 **Animation & Character Improvements:**
