@@ -1164,22 +1164,22 @@ function buildKitchenette() {
   head.position.set(0, legLen + 1.1, 0);
     group.add(head);
   // Hair and facial features positioned for front face (after head rotates, -Z becomes front)
-  // Ponytail hairstyle - hair pulled back
+  // Hair cap covers top of head
   const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.19, 18, 14, 0, Math.PI*2, 0, Math.PI/1.8), hairMat);
   hairCap.position.set(0, legLen + 1.1, 0.01); // slightly forward
   group.add(hairCap);
-  // Ponytail at back (becomes front after 180° rotation)
+  // Ponytail at actual back of head (positive Z in local space = back)
   const ponytail = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.05, 0.3, 12), hairMat);
   ponytail.rotation.x = Math.PI/6; // angled down
-  ponytail.position.set(0, legLen + 1.0, -0.2); // at back in local space
+  ponytail.position.set(0, legLen + 1.0, 0.2); // at back (positive Z)
   group.add(ponytail);
-  // Side bangs
+  // Side bangs at front
   const strandL = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.15, 0.04), hairMat);
   const strandR = strandL.clone();
-  strandL.position.set(-0.12, legLen + 1.05, -0.08);
+  strandL.position.set(-0.12, legLen + 1.05, -0.08); // front side
   strandR.position.set( 0.12, legLen + 1.05, -0.08);
   group.add(strandL, strandR);
-  // Eyes (inverted Z to appear on front after rotation)
+  // Eyes (negative Z = front after head rotation)
   const eyeMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.7 });
   const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), eyeMat);
   const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), eyeMat);
@@ -1192,7 +1192,7 @@ function buildKitchenette() {
   earL.position.set(-0.2, legLen + 1.1, 0.0);
   earR.position.set( 0.2, legLen + 1.1, 0.0);
   group.add(earL, earR);
-  // Nose & mouth (inverted Z and rotation)
+  // Nose & mouth (negative Z and rotation for front)
   const nose = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.06, 10), skin);
   nose.rotation.x = -Math.PI/2; // flip to point forward after rotation
   nose.position.set(0, legLen + 1.1, -0.17);
