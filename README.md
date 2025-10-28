@@ -62,11 +62,24 @@ Customization hints (in `assets/js/main.js`):
 
 ### Latest updates (October 2025)
 
-- Mother now stirs the bowl with her right hand in a gentle circular motion and occasionally lifts the spatula to her mouth for a quick taste; her left hand rests naturally on the countertop.
-- Kids now actually “eat”: each child reaches toward their plate, picks up a snack, brings it to their mouth, “chews” (the snack shrinks/disappears), returns the hand, idles briefly, and repeats.
+**Animation & Character Improvements:**
+- Mother now stirs the bowl with dynamic hand selection and occasionally lifts the spatula to her mouth for a quick taste.
+- Mother's body is rotated 180° with legs and head independently oriented to face the countertop.
+- Hands automatically work in front of her body (toward the granite/countertop) using dynamic IK.
+- Side apron added on the countertop-facing side instead of front apron.
+- Facial expressions: animated blinking, subtle smiling, and eyebrow movements for natural look.
+- Hair styled as a ponytail at the back of the head with side bangs at front.
+- Indian skin tones applied; realistic facial features (eyes, nose, mouth, eyebrows, ears).
+
+**Kids' Eating Animation:**
+- Kids now actually "eat" with a full state machine: reach → pick snack from plate → bring to mouth → chew (snack shrinks/disappears) → return → idle → repeat.
+- Each plate tracks individual snack items that get consumed during the animation.
+- Natural head nodding and periodic blinking.
+
+**Scene & Setup:**
 - Mother stands clearly in front of the opposite-side counter and faces the cooking area.
-- Indian skin tones applied to mother and kids; more human facial features for mother (eyes, ears, nose, mouth) and hair (cap, bun, side strands).
 - Additional cooking context: mixing bowl with ingredients, chopping board with veggies, measuring cup on the counter.
+- Legs grouped for independent rotation from torso.
 
 Tweak pose and animation (in `assets/js/main.js`):
 
