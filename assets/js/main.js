@@ -1124,19 +1124,21 @@ function buildKitchenette() {
     const apron = new THREE.MeshStandardMaterial({ color: 0xFFF5E1, roughness: 0.92 }); // off-white apron
   const hairMat = new THREE.MeshStandardMaterial({ color: 0x2b2b2b, roughness: 0.5 });
 
-  // Legs (longer for taller height)
+  // Legs (longer for taller height) - grouped for rotation
   const legLen = 1.0;
+  const legsGroup = new THREE.Group();
   const legL = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, legLen, 12), dressSkirt);
   const legR = legL.clone();
   legL.position.set(-0.12, legLen/2, 0.05);
   legR.position.set( 0.12, legLen/2, 0.05);
-  group.add(legL, legR);
+  legsGroup.add(legL, legR);
   // Simple shoes
   const shoeL = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.06, 0.3), new THREE.MeshStandardMaterial({ color: 0x303030, roughness: 0.6 }));
   const shoeR = shoeL.clone();
   shoeL.position.set(-0.12, 0.03, 0.12);
   shoeR.position.set( 0.12, 0.03, 0.12);
-  group.add(shoeL, shoeR);
+  legsGroup.add(shoeL, shoeR);
+  group.add(legsGroup);
 
     // Skirt (slightly flared)
   const skirt = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.36, 0.5, 16), dressSkirt);
@@ -1152,20 +1154,7 @@ function buildKitchenette() {
   shoulders.position.set(0, legLen + 0.82, 0);
   group.add(shoulders);
 
-    // Apron front panel and straps
-  const apronPanel = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.52, 0.02), apron);
-  apronPanel.position.set(0, legLen + 0.55, 0.135);
-  const apronTop = new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.2, 0.02), apron);
-  apronTop.position.set(0, legLen + 0.8, 0.135);
-    const strapL = new THREE.Mesh(new THREE.BoxGeometry(0.02, 0.35, 0.02), apron);
-    const strapR = strapL.clone();
-  strapL.position.set(-0.24, legLen + 0.65, 0.08);
-  strapR.position.set( 0.24, legLen + 0.65, 0.08);
-  // Apron waist tie
-  const waist = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.04, 0.02), apron);
-  waist.position.set(0, legLen + 0.52, 0.12);
-  group.add(waist);
-    group.add(apronPanel, apronTop, strapL, strapR);
+    // (Apron front removed; we'll add a side apron later facing the countertop)
 
     // Head
   const neck = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.1, 12), skin);
@@ -1174,6 +1163,7 @@ function buildKitchenette() {
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 12), skin);
   head.position.set(0, legLen + 1.1, 0);
     group.add(head);
+  // Hair and facial features (front-facing); also store refs for expressions
   // Hair cap and bun with side strands
   const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.19, 18, 14, 0, Math.PI*2, 0, Math.PI/1.8), hairMat);
   hairCap.position.set(0, legLen + 1.1, -0.01);
@@ -1186,7 +1176,7 @@ function buildKitchenette() {
   strandL.position.set(-0.12, legLen + 1.03, 0.08);
   strandR.position.set( 0.12, legLen + 1.03, 0.08);
   group.add(strandL, strandR);
-  // Simple eyes
+  // Eyes
   const eyeMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.7 });
   const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), eyeMat);
   const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), eyeMat);
@@ -1207,10 +1197,16 @@ function buildKitchenette() {
   const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.02, 0.01), new THREE.MeshStandardMaterial({ color: 0x8d3a3a, roughness: 0.7 }));
   mouth.position.set(0, legLen + 1.06, 0.175);
   group.add(mouth);
-    // Hair bun
-    const bun = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 12), hairMat);
-    bun.position.set(0, 1.9, -0.05);
-    group.add(bun);
+  // For the legacy headParts array below, map bun to hairBun
+  const bun = hairBun;
+
+  // Save references for expressions
+  actorAnim.mother.eyes = [eyeL, eyeR];
+  actorAnim.mother.mouthMesh = mouth;
+  actorAnim.mother.brows = [
+    (()=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.01,0.01), new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.6 })); b.position.set(-0.06, legLen+1.16, 0.155); group.add(b); return b; })(),
+    (()=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.01,0.01), new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.6 })); b.position.set( 0.06, legLen+1.16, 0.155); group.add(b); return b; })()
+  ];
 
     // Arms with pivots for animation
   const shoulderY = legLen + 0.82;
@@ -1219,7 +1215,8 @@ function buildKitchenette() {
   const foreGeo = new THREE.BoxGeometry(0.09, foreLen, 0.09);
   // Right arm with elbow
   const rightPivot = new THREE.Group();
-  rightPivot.position.set(0.26, shoulderY, 0.02);
+  // Mirrored to other side of body (toward granite)
+  rightPivot.position.set(-0.26, shoulderY, 0.02);
   const upperR = new THREE.Mesh(upperGeo, dressTop);
   upperR.position.y = -upperLen/2;
   rightPivot.add(upperR);
@@ -1247,7 +1244,8 @@ function buildKitchenette() {
 
   // Left arm (idle) with elbow
   const leftPivot = new THREE.Group();
-  leftPivot.position.set(-0.26, shoulderY, 0.02);
+  // Mirrored to other side of body (toward granite)
+  leftPivot.position.set(0.26, shoulderY, 0.02);
   const upperL = new THREE.Mesh(upperGeo, dressTop); upperL.position.y = -upperLen/2; leftPivot.add(upperL);
   const elbowL = new THREE.Group(); elbowL.position.set(0, -upperLen, 0);
   const foreL = new THREE.Mesh(foreGeo, dressTop); foreL.position.y = -foreLen/2; elbowL.add(foreL);
@@ -1267,14 +1265,57 @@ function buildKitchenette() {
       group.rotation.y = Math.atan2(dx, dz);
     }
 
-    // Store animation references (swap hands so LEFT arm does stirring, RIGHT rests)
+  // Rotate entire body 180deg, but NOT head parts or legs - they face countertop independently
+  group.rotation.y += Math.PI;
+  
+  // Rotate legs to face countertop (opposite to body)
+  legsGroup.rotation.y = Math.PI;
+  
+  // Rotate head parts to face countertop (same as original body direction, cancels the group rotation)
+  const headParts = [];
+  headParts.push(head, hairCap, hairBun, bun, strandL, strandR, eyeL, eyeR, earL, earR, nose, mouth);
+  headParts.forEach(p => { if (p) p.rotation.y = (p.rotation.y || 0) + Math.PI; });
+
+  // Add a side apron toward the countertop side
+  const sideApronGeo = new THREE.BoxGeometry(0.02, 0.52, 0.24);
+  const sideApron = new THREE.Mesh(sideApronGeo, apron);
+  const targetLocalForApron = group.worldToLocal((actorAnim.mother.workTarget || new THREE.Vector3()).clone());
+  const sideSign = targetLocalForApron.x >= 0 ? 1 : -1; // +x side or -x side
+  sideApron.position.set(sideSign * 0.24, legLen + 0.55, 0.0);
+  group.add(sideApron);
+
+  // Store animation references and choose active arm based on bowl side (ensure arms work in FRONT and on the near side)
     actorAnim.mother.group = group;
-  actorAnim.mother.rightArmPivot = leftPivot;
-  actorAnim.mother.rightElbowPivot = elbowL;
-  actorAnim.mother.wristPivot = wristL;
-  actorAnim.mother.leftArmPivot = rightPivot;
-  actorAnim.mother.leftElbowPivot = elbowR;
-  actorAnim.mother.leftWristPivot = wristR;
+    // Determine which shoulder is on +X and which on -X in local space
+    const posXPivot  = (rightPivot.position.x >= leftPivot.position.x) ? rightPivot : leftPivot;
+    const posXElbow  = (posXPivot === rightPivot) ? elbowR : elbowL;
+    const posXWrist  = (posXPivot === rightPivot) ? wristR : wristL;
+    const negXPivot  = (posXPivot === rightPivot) ? leftPivot : rightPivot;
+    const negXElbow  = (posXPivot === rightPivot) ? elbowL : elbowR;
+    const negXWrist  = (posXPivot === rightPivot) ? wristL : wristR;
+
+    // Work target (bowl) in mother's local space
+    const targetLocalForSide = group.worldToLocal(actorAnim.mother.workTarget.clone());
+    const usePosSide = (targetLocalForSide.x >= 0);
+
+    const activePivot = usePosSide ? posXPivot : negXPivot;
+    const activeElbow = usePosSide ? posXElbow : negXElbow;
+    const activeWrist = usePosSide ? posXWrist : negXWrist;
+    const restPivot   = usePosSide ? negXPivot : posXPivot;
+    const restElbow   = usePosSide ? negXElbow : posXElbow;
+    const restWrist   = usePosSide ? negXWrist : posXWrist;
+
+    // Assign references used by the animation loop
+    actorAnim.mother.rightArmPivot = activePivot;      // 'rightArm' = active stirring/tasting arm
+    actorAnim.mother.rightElbowPivot = activeElbow;
+    actorAnim.mother.wristPivot = activeWrist;
+    actorAnim.mother.leftArmPivot = restPivot;         // 'leftArm' = resting arm on counter
+    actorAnim.mother.leftElbowPivot = restElbow;
+    actorAnim.mother.leftWristPivot = restWrist;
+
+    // Ensure utensil is on the active hand
+    if (handle.parent) { handle.parent.remove(handle); }
+    activeWrist.add(handle);
   actorAnim.mother.spatula = handle;
   actorAnim.mother.upperLen = upperLen;
   actorAnim.mother.foreLen = foreLen;
@@ -1535,7 +1576,7 @@ function animate() {
     const L1 = actorAnim.mother.upperLen || 0.38;
     const L2 = actorAnim.mother.foreLen || 0.34;
 
-    if (group && shoulder && elbow && wrist && actorAnim.mother.workTarget) {
+  if (group && shoulder && elbow && wrist && actorAnim.mother.workTarget) {
       const staticPose = actorAnim.mother.staticPose === true;
       // Occasionally lift to mouth as a 'taste' action
       const tastePhase = (t % 12.0);
@@ -1549,10 +1590,12 @@ function animate() {
         const r = staticPose ? 0.0 : 0.085;
         targetWorld = actorAnim.mother.workTarget.clone().add(new THREE.Vector3(Math.cos(t*2.0)*r, 0.07, Math.sin(t*2.0)*r));
       }
-      const targetLocal = group.worldToLocal(targetWorld.clone());
+  const targetLocal = group.worldToLocal(targetWorld.clone());
+  // Force front hemisphere: if target ends up behind the torso (z<0), mirror to front
+  if (targetLocal.z < 0) targetLocal.z = -targetLocal.z + 0.02;
 
       // Vector from shoulder (local) to target (local)
-      const shoulderLocal = shoulder.position.clone();
+  const shoulderLocal = shoulder.position.clone();
       const v = targetLocal.clone().sub(shoulderLocal);
 
       // Yaw towards target in XZ plane
@@ -1572,7 +1615,7 @@ function animate() {
       const shoulderPitch = angleToTarget + shoulderInner;
 
       // Apply pose once or keep steady each frame (no oscillation)
-      shoulder.rotation.x = shoulderPitch;
+  shoulder.rotation.x = shoulderPitch;
       elbow.rotation.x = elbowAngle;
       // Wrist pitched down; slight yaw if moving
       wrist.rotation.set(-1.3, staticPose ? 0 : Math.sin(t*2.0)*0.25, 0);
@@ -1591,6 +1634,8 @@ function animate() {
   const drift = new THREE.Vector3(Math.sin(tt*0.9)*0.01, 0, Math.cos(tt*0.8)*0.008);
   const restWorld = actorAnim.mother.workTarget.clone().add(new THREE.Vector3(-0.18, (actorAnim.mother.counterY || 1.6) + 0.02, 0.0)).add(drift);
     const restLocal = group.worldToLocal(restWorld.clone());
+    // Keep left/rest hand in front hemisphere as well
+    if (restLocal.z < 0) restLocal.z = -restLocal.z + 0.02;
     const shoulderLocal = shoulder.position.clone();
     const v = restLocal.clone().sub(shoulderLocal);
     const yaw = Math.atan2(v.x, v.z);
@@ -1705,6 +1750,21 @@ function animate() {
       const on = (Math.floor(t)%2)===0; // blink every ~1s
       actorAnim.cmDisplay.material.emissiveIntensity = on ? 0.7 : 0.2;
     }
+  }
+
+  // Mother facial expressions: blink and soft smile
+  if (actorAnim.mother.eyes && actorAnim.mother.eyes.length) {
+    const blinkT = (Math.sin(now*0.23 + 0.7)*0.5 + 0.5);
+    const blink = blinkT > 0.96; // brief blink
+    actorAnim.mother.eyes.forEach(e => { if (e) e.scale.y = blink ? 0.05 : 1.0; });
+  }
+  if (actorAnim.mother.mouthMesh) {
+    const s = 0.9 + Math.sin(now*0.6)*0.1; // subtle smile oscillation
+    actorAnim.mother.mouthMesh.scale.set(s, 1.0, 1.0);
+  }
+  if (actorAnim.mother.brows && actorAnim.mother.brows.length) {
+    const raise = Math.sin(now*0.6+0.4)*0.01;
+    actorAnim.mother.brows.forEach((b,i)=>{ if(b){ b.position.y = (b.position.y0 ?? (b.position.y0=b.position.y)); b.position.y = b.position.y0 + (i===0?raise:-raise); }});
   }
 
   // Render the scene from the camera's perspective
