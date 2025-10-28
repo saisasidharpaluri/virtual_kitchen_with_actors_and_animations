@@ -1163,49 +1163,53 @@ function buildKitchenette() {
   const head = new THREE.Mesh(new THREE.SphereGeometry(0.18, 16, 12), skin);
   head.position.set(0, legLen + 1.1, 0);
     group.add(head);
-  // Hair and facial features (front-facing); also store refs for expressions
-  // Hair cap and bun with side strands
+  // Hair and facial features positioned for front face (after head rotates, -Z becomes front)
+  // Ponytail hairstyle - hair pulled back
   const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.19, 18, 14, 0, Math.PI*2, 0, Math.PI/1.8), hairMat);
-  hairCap.position.set(0, legLen + 1.1, -0.01);
+  hairCap.position.set(0, legLen + 1.1, 0.01); // slightly forward
   group.add(hairCap);
-  const hairBun = new THREE.Mesh(new THREE.SphereGeometry(0.12, 16, 12), hairMat);
-  hairBun.position.set(0, legLen + 1.24, -0.06);
-  group.add(hairBun);
-  const strandL = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.18, 0.04), hairMat);
+  // Ponytail at back (becomes front after 180° rotation)
+  const ponytail = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.05, 0.3, 12), hairMat);
+  ponytail.rotation.x = Math.PI/6; // angled down
+  ponytail.position.set(0, legLen + 1.0, -0.2); // at back in local space
+  group.add(ponytail);
+  // Side bangs
+  const strandL = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.15, 0.04), hairMat);
   const strandR = strandL.clone();
-  strandL.position.set(-0.12, legLen + 1.03, 0.08);
-  strandR.position.set( 0.12, legLen + 1.03, 0.08);
+  strandL.position.set(-0.12, legLen + 1.05, -0.08);
+  strandR.position.set( 0.12, legLen + 1.05, -0.08);
   group.add(strandL, strandR);
-  // Eyes
+  // Eyes (inverted Z to appear on front after rotation)
   const eyeMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.7 });
   const eyeL = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), eyeMat);
   const eyeR = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), eyeMat);
-  eyeL.position.set(-0.06, legLen + 1.12, 0.15);
-  eyeR.position.set( 0.06, legLen + 1.12, 0.15);
+  eyeL.position.set(-0.06, legLen + 1.12, -0.15); // negative Z for front after rotation
+  eyeR.position.set( 0.06, legLen + 1.12, -0.15);
   group.add(eyeL, eyeR);
-  // Ears
+  // Ears on sides
   const earL = new THREE.Mesh(new THREE.SphereGeometry(0.035, 10, 8), skin);
   const earR = earL.clone();
   earL.position.set(-0.2, legLen + 1.1, 0.0);
   earR.position.set( 0.2, legLen + 1.1, 0.0);
   group.add(earL, earR);
-  // Nose & mouth
+  // Nose & mouth (inverted Z and rotation)
   const nose = new THREE.Mesh(new THREE.ConeGeometry(0.03, 0.06, 10), skin);
-  nose.rotation.x = Math.PI/2;
-  nose.position.set(0, legLen + 1.1, 0.17);
+  nose.rotation.x = -Math.PI/2; // flip to point forward after rotation
+  nose.position.set(0, legLen + 1.1, -0.17);
   group.add(nose);
   const mouth = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.02, 0.01), new THREE.MeshStandardMaterial({ color: 0x8d3a3a, roughness: 0.7 }));
-  mouth.position.set(0, legLen + 1.06, 0.175);
+  mouth.position.set(0, legLen + 1.06, -0.175);
   group.add(mouth);
-  // For the legacy headParts array below, map bun to hairBun
-  const bun = hairBun;
+  // For the legacy headParts array below, map bun to ponytail
+  const bun = ponytail;
+  const hairBun = ponytail; // compatibility
 
   // Save references for expressions
   actorAnim.mother.eyes = [eyeL, eyeR];
   actorAnim.mother.mouthMesh = mouth;
   actorAnim.mother.brows = [
-    (()=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.01,0.01), new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.6 })); b.position.set(-0.06, legLen+1.16, 0.155); group.add(b); return b; })(),
-    (()=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.01,0.01), new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.6 })); b.position.set( 0.06, legLen+1.16, 0.155); group.add(b); return b; })()
+    (()=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.01,0.01), new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.6 })); b.position.set(-0.06, legLen+1.16, -0.155); group.add(b); return b; })(),
+    (()=>{ const b=new THREE.Mesh(new THREE.BoxGeometry(0.06,0.01,0.01), new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.6 })); b.position.set( 0.06, legLen+1.16, -0.155); group.add(b); return b; })()
   ];
 
     // Arms with pivots for animation
