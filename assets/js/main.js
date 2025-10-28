@@ -1241,7 +1241,7 @@ function buildKitchenette() {
   const blade = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.02, 0.08), matApplianceBlack);
   blade.position.x = 0.12;
   handle.add(blade);
-  wristR.add(handle);
+  // wristR.add(handle); // utensil swapped to left hand
   elbowR.add(wristR);
   rightPivot.add(elbowR);
 
@@ -1253,6 +1253,8 @@ function buildKitchenette() {
   const foreL = new THREE.Mesh(foreGeo, dressTop); foreL.position.y = -foreLen/2; elbowL.add(foreL);
   const wristL = new THREE.Group(); wristL.position.set(0, -foreLen, 0); elbowL.add(wristL);
   const handL = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), skin); handL.position.set(0, 0, 0); wristL.add(handL);
+  // Attach utensil to LEFT wrist (swap hands)
+  wristL.add(handle);
   leftPivot.add(elbowL);
 
     group.add(rightPivot, leftPivot);
@@ -1265,14 +1267,14 @@ function buildKitchenette() {
       group.rotation.y = Math.atan2(dx, dz);
     }
 
-    // Store animation references
+    // Store animation references (swap hands so LEFT arm does stirring, RIGHT rests)
     actorAnim.mother.group = group;
-  actorAnim.mother.rightArmPivot = rightPivot;
-  actorAnim.mother.rightElbowPivot = elbowR;
-  actorAnim.mother.wristPivot = wristR;
-  actorAnim.mother.leftArmPivot = leftPivot;
-  actorAnim.mother.leftElbowPivot = elbowL;
-  actorAnim.mother.leftWristPivot = wristL;
+  actorAnim.mother.rightArmPivot = leftPivot;
+  actorAnim.mother.rightElbowPivot = elbowL;
+  actorAnim.mother.wristPivot = wristL;
+  actorAnim.mother.leftArmPivot = rightPivot;
+  actorAnim.mother.leftElbowPivot = elbowR;
+  actorAnim.mother.leftWristPivot = wristR;
   actorAnim.mother.spatula = handle;
   actorAnim.mother.upperLen = upperLen;
   actorAnim.mother.foreLen = foreLen;
