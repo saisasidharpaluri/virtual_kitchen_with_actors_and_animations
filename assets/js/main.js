@@ -10,9 +10,11 @@ const actorAnim = {
     leftArmPivot: null,
     spatula: null,
     baseTarget: new THREE.Vector3(),
+    mouthLocal: null,
   },
   steam: [], // particles above pan
-  kids: [],  // { group, headPivot, handPivot, plate, snack }
+  kids: [],  // { group, headPivot, handPivot, snack, plate, plateSnacks, state, stateTime, cycleOffset }
+  _lastT: 0,
 };
 
 const width = window.innerWidth;
@@ -671,6 +673,8 @@ function buildKitchenette() {
   const underLight = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.02, 0.1), matEmissiveWarm);
   underLight.position.set(ucX, 3.15, ucZ + 0.45);
   scene.add(underLight);
+  // store for subtle pulsing
+  actorAnim.underLight = underLight;
   
   // Wall-mounted drinking water purifier near sink (replaces geyser)
   const windowXPos = roomWidth/2 - 2.3; // reference for window position if needed
@@ -746,6 +750,8 @@ function buildKitchenette() {
   const cmDisplay = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.04, 0.01), new THREE.MeshStandardMaterial({ color: 0x00ff99, emissive: 0x00ff66, emissiveIntensity: 0.6 }));
   cmDisplay.position.set(cmx, counterTopY + 0.25, backRunZ + 0.24);
   scene.add(cmDisplay);
+  // Store for blinking animation
+  actorAnim.cmDisplay = cmDisplay;
   for (let i = 0; i < 3; i++) {
     const btn = new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), [matAccentRed, matAccentYellow, matAccentBlue][i]);
     btn.position.set(cmx - 0.09 + i * 0.09, counterTopY + 0.22, backRunZ + 0.24);
@@ -801,6 +807,20 @@ function buildKitchenette() {
   kettleHandle.rotation.y = Math.PI/2;
   kettleHandle.position.set(sinkX + 0.95, counterTopY + 0.16, backRunZ - 0.05);
   scene.add(kettleHandle);
+  // gentle steam from kettle lid
+  (function createKettleSteam(){
+    const base = new THREE.Vector3(sinkX + 0.9, counterTopY + 0.25, backRunZ + 0.05);
+    const steamMat = new THREE.MeshStandardMaterial({ color: 0xffffff, transparent: true, opacity: 0.25, roughness: 1.0 });
+    for (let i = 0; i < 6; i++) {
+      const s = new THREE.Mesh(new THREE.SphereGeometry(0.03 + Math.random()*0.02, 10, 8), steamMat.clone());
+      s.position.copy(base.clone().add(new THREE.Vector3((Math.random()-0.5)*0.12, 0, (Math.random()-0.5)*0.12)));
+      s.userData.base = s.position.clone();
+      s.userData.speed = 0.08 + Math.random()*0.05;
+      s.userData.phase = Math.random()*Math.PI*2;
+      actorAnim.steam.push(s);
+      scene.add(s);
+    }
+  })();
 
   // Spice rack near cooktop
   const spiceGroup = new THREE.Group();
@@ -1231,7 +1251,8 @@ function buildKitchenette() {
   const upperL = new THREE.Mesh(upperGeo, dressTop); upperL.position.y = -upperLen/2; leftPivot.add(upperL);
   const elbowL = new THREE.Group(); elbowL.position.set(0, -upperLen, 0);
   const foreL = new THREE.Mesh(foreGeo, dressTop); foreL.position.y = -foreLen/2; elbowL.add(foreL);
-  const handL = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), skin); handL.position.set(0, -foreLen, 0); elbowL.add(handL);
+  const wristL = new THREE.Group(); wristL.position.set(0, -foreLen, 0); elbowL.add(wristL);
+  const handL = new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), skin); handL.position.set(0, 0, 0); wristL.add(handL);
   leftPivot.add(elbowL);
 
     group.add(rightPivot, leftPivot);
@@ -1250,11 +1271,16 @@ function buildKitchenette() {
   actorAnim.mother.rightElbowPivot = elbowR;
   actorAnim.mother.wristPivot = wristR;
   actorAnim.mother.leftArmPivot = leftPivot;
+  actorAnim.mother.leftElbowPivot = elbowL;
+  actorAnim.mother.leftWristPivot = wristL;
   actorAnim.mother.spatula = handle;
   actorAnim.mother.upperLen = upperLen;
   actorAnim.mother.foreLen = foreLen;
     actorAnim.mother.baseTarget.copy(faceTarget || new THREE.Vector3());
-  actorAnim.mother.staticPose = true; // keep hand straight and still
+  actorAnim.mother.staticPose = false; // allow right hand stirring
+  actorAnim.mother.counterY = counterTopY; // for left hand rest height
+    // Approximate mouth position in mother's local space for tasting animation
+    actorAnim.mother.mouthLocal = new THREE.Vector3(0, legLen + 1.06, 0.175);
 
     // Info metadata (invisible helper)
     const comp = createComponent(new THREE.BoxGeometry(0.7, 2.0, 0.7), dressTop, new THREE.Vector3(x, 1.0, z), "Mother (Cooking)", {
@@ -1277,24 +1303,47 @@ function buildKitchenette() {
   scene.add(mother);
 
   // --- Snacks on dining table + kids sitting ---
-  function addPlateWithSnacks(px, pz) {
+  function addPlateWithSnacks(px, pz, palette) {
     const group = new THREE.Group();
-    const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.02, 24), new THREE.MeshStandardMaterial({ color: 0xf5f5f5, roughness: 0.8 }));
+    const snacks = [];
+    const plate = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.18, 0.02, 24), new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 }));
     plate.position.y = 0.92; // table height 0.9 + small
     group.add(plate);
-    // cookies / chips
-    for (let i = 0; i < 5; i++) {
-      const snack = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.02, 12), new THREE.MeshStandardMaterial({ color: 0xd2a679, roughness: 0.7 }));
-      snack.position.set((Math.random()-0.5)*0.18, 0.94, (Math.random()-0.5)*0.18);
-      group.add(snack);
+    // colorful snacks: mix of cookies, candies, and a donut
+    const colors = palette || [0xFF8A80, 0xFFD180, 0xFFFF8D, 0xCCFF90, 0x80D8FF, 0xB388FF];
+    for (let i = 0; i < 4; i++) {
+      const c = colors[i % colors.length];
+      const cookie = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.02, 16), new THREE.MeshStandardMaterial({ color: 0xD2A679, roughness: 0.7 }));
+      cookie.position.set((Math.random()-0.5)*0.18, 0.94, (Math.random()-0.5)*0.18);
+      cookie.userData.isPlateSnack = true; cookie.userData.kind = 'cookie';
+      group.add(cookie); snacks.push(cookie);
+      const candy = new THREE.Mesh(new THREE.SphereGeometry(0.028, 12, 10), new THREE.MeshStandardMaterial({ color: c, roughness: 0.6 }));
+      candy.position.set((Math.random()-0.5)*0.18, 0.96, (Math.random()-0.5)*0.18);
+      candy.userData.isPlateSnack = true; candy.userData.kind = 'candy';
+      group.add(candy); snacks.push(candy);
     }
+    // donut
+    const donut = new THREE.Mesh(new THREE.TorusGeometry(0.05, 0.015, 10, 20), new THREE.MeshStandardMaterial({ color: colors[0], roughness: 0.6 }));
+    donut.position.set((Math.random()-0.5)*0.12, 0.95, (Math.random()-0.5)*0.12);
+    donut.rotation.x = Math.PI/2;
+    donut.userData.isPlateSnack = true; donut.userData.kind = 'donut';
+    group.add(donut); snacks.push(donut);
     // cup
     const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.05, 0.12, 16), matApplianceWhite);
     cup.position.set(0.18, 0.97, 0.02);
     group.add(cup);
     group.position.set(px, 0, pz);
     scene.add(group);
-    return group;
+    return { group, snacks };
+  }
+
+  function placePlateInFrontOfKid(kidGroup, dist = 0.45, sideOffset = 0) {
+    const yaw = kidGroup.rotation.y || 0;
+    const forward = { x: Math.sin(yaw), z: Math.cos(yaw) };
+    const right =   { x: Math.cos(yaw), z: -Math.sin(yaw) };
+    const px = kidGroup.position.x + forward.x * dist + right.x * sideOffset;
+    const pz = kidGroup.position.z + forward.z * dist + right.z * sideOffset;
+    return { x: px, z: pz };
   }
 
   function createKid(sitting=true, scheme) {
@@ -1334,21 +1383,32 @@ function buildKitchenette() {
     const armGeo = new THREE.BoxGeometry(0.08, 0.22, 0.08);
     const rightPivot = new THREE.Group(); rightPivot.position.set(0.18, 0.84, 0);
     const right = new THREE.Mesh(armGeo, shirt); right.position.y = -0.11; rightPivot.add(right);
-    const snack = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.02, 10), new THREE.MeshStandardMaterial({ color: 0xd2a679 }));
-    snack.position.set(0, -0.23, 0.02);
-    rightPivot.add(snack);
+  const snack = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.02, 10), new THREE.MeshStandardMaterial({ color: 0xd2a679 }));
+  snack.position.set(0, -0.23, 0.02);
+  snack.visible = false; // becomes visible when a snack is picked up from the plate
+  rightPivot.add(snack);
     const leftPivot = new THREE.Group(); leftPivot.position.set(-0.18, 0.84, 0);
     const left = new THREE.Mesh(armGeo, shirt); left.position.y = -0.11; leftPivot.add(left);
     group.add(rightPivot, leftPivot);
 
-    // Legs dangling
-    const legGeo = new THREE.BoxGeometry(0.09, 0.32, 0.09);
-    const legL = new THREE.Mesh(legGeo, pants); legL.position.set(-0.08, 0.42, 0.03);
-    const legR = new THREE.Mesh(legGeo, pants); legR.position.set( 0.08, 0.42, 0.03);
-    group.add(legL, legR);
+  // Legs with simple knees and shoes
+  const thighLen = 0.22, shinLen = 0.24;
+  const thighGeo = new THREE.BoxGeometry(0.09, thighLen, 0.09);
+  const shinGeo  = new THREE.BoxGeometry(0.085, shinLen, 0.085);
+  const shoeMat  = new THREE.MeshStandardMaterial({ color: 0x2f2f2f, roughness: 0.7 });
+  // Left leg
+  const thighL = new THREE.Mesh(thighGeo, pants); thighL.position.set(-0.08, 0.48, 0.03); group.add(thighL);
+  const kneeL = new THREE.Group(); kneeL.position.set(-0.08, 0.48 - thighLen/2, 0.03); group.add(kneeL);
+  const shinL = new THREE.Mesh(shinGeo, pants); shinL.position.y = -shinLen/2; kneeL.add(shinL);
+  const shoeL = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.05, 0.18), shoeMat); shoeL.position.set(0, -shinLen, 0.03); kneeL.add(shoeL);
+  // Right leg
+  const thighR = new THREE.Mesh(thighGeo, pants); thighR.position.set( 0.08, 0.48, 0.03); group.add(thighR);
+  const kneeR = new THREE.Group(); kneeR.position.set( 0.08, 0.48 - thighLen/2, 0.03); group.add(kneeR);
+  const shinR = new THREE.Mesh(shinGeo, pants); shinR.position.y = -shinLen/2; kneeR.add(shinR);
+  const shoeR = new THREE.Mesh(new THREE.BoxGeometry(0.11, 0.05, 0.18), shoeMat); shoeR.position.set(0, -shinLen, 0.03); kneeR.add(shoeR);
 
     // Store for animation
-    actorAnim.kids.push({ group, headPivot, handPivot: rightPivot, snack });
+  actorAnim.kids.push({ group, headPivot, handPivot: rightPivot, snack, cycleOffset: Math.random()*5 });
 
     // Info helper
     const comp = createComponent(new THREE.BoxGeometry(0.4, 1.2, 0.4), shirt, new THREE.Vector3(0, 0.8, 0), "Kid (Eating)", {
@@ -1377,12 +1437,16 @@ function buildKitchenette() {
   const kid2 = createKid(true, kid2Scheme); kid2.position.set(kid2Seat.x, 0, kid2Seat.z); faceTowardCenter(kid2, kid2Seat);
   scene.add(kid1, kid2);
 
-  // Place plates and snacks in front of them on the table
-  const plateOffset = 0.35;
-  const kid1PlatePos = placeLocalToWorld(-longSeatOffset, -(shortHalf - 0.05));
-  const kid2PlatePos = placeLocalToWorld(-longSeatOffset,  (shortHalf - 0.05));
-  addPlateWithSnacks(kid1PlatePos.x, kid1PlatePos.z);
-  addPlateWithSnacks(kid2PlatePos.x, kid2PlatePos.z);
+  // Place colorful plates and snacks directly in front of each kid
+  const kid1Plate = placePlateInFrontOfKid(kid1, 0.42, 0);
+  const kid2Plate = placePlateInFrontOfKid(kid2, 0.42, 0);
+  const palette1 = [0xFF8A80, 0xFFD180, 0xFFFF8D, 0x80D8FF];
+  const palette2 = [0xA7FFEB, 0xB388FF, 0xFF9E80, 0xCCFF90];
+  const plate1 = addPlateWithSnacks(kid1Plate.x, kid1Plate.z, palette1);
+  const plate2 = addPlateWithSnacks(kid2Plate.x, kid2Plate.z, palette2);
+  // wire plates to kids for eating animation
+  if (actorAnim.kids[0]) { actorAnim.kids[0].plate = plate1.group; actorAnim.kids[0].plateSnacks = plate1.snacks; actorAnim.kids[0].currentSnack = -1; actorAnim.kids[0].state = 'reach'; actorAnim.kids[0].stateTime = 0; }
+  if (actorAnim.kids[1]) { actorAnim.kids[1].plate = plate2.group; actorAnim.kids[1].plateSnacks = plate2.snacks; actorAnim.kids[1].currentSnack = -1; actorAnim.kids[1].state = 'reach'; actorAnim.kids[1].stateTime = 0; }
 }
 
 // --- Interaction Handlers ---
@@ -1445,10 +1509,23 @@ function animate() {
   // Update controls for smooth damping effect
   controls.update();
 
+  // timekeeping for dt-based state machines
+  const now = performance.now() * 0.001;
+  const dt = actorAnim._lastT ? Math.min(0.05, now - actorAnim._lastT) : 0.016;
+  actorAnim._lastT = now;
+
   // --- Lightweight character animations ---
-  // Mother arm control: static straight pose toward bowl (no motion)
+  // Mother: micro body sway/breath
+  if (actorAnim.mother.group) {
+    const t = now;
+    const g = actorAnim.mother.group;
+    g.position.y = Math.sin(t*1.1)*0.01; // breathing lift
+    g.rotation.z = Math.sin(t*0.7)*0.02; // gentle sway
+  }
+
+  // Mother arm control: right hand stirs, left hand rests on countertop
   if (actorAnim.mother.rightArmPivot) {
-    const t = performance.now() * 0.001;
+    const t = now;
     const shoulder = actorAnim.mother.rightArmPivot;
     const elbow = actorAnim.mother.rightElbowPivot;
     const wrist = actorAnim.mother.wristPivot;
@@ -1458,8 +1535,18 @@ function animate() {
 
     if (group && shoulder && elbow && wrist && actorAnim.mother.workTarget) {
       const staticPose = actorAnim.mother.staticPose === true;
-      // Fixed target just above bowl center
-      const targetWorld = actorAnim.mother.workTarget.clone().add(new THREE.Vector3(0, 0.07, 0));
+      // Occasionally lift to mouth as a 'taste' action
+      const tastePhase = (t % 12.0);
+      const doTaste = !staticPose && tastePhase > 6.0 && tastePhase < 7.0;
+      let targetWorld;
+      if (doTaste && actorAnim.mother.mouthLocal) {
+        const mouthWorld = actorAnim.mother.group.localToWorld(actorAnim.mother.mouthLocal.clone());
+        targetWorld = mouthWorld.add(new THREE.Vector3(0.02, 0.0, 0.0));
+      } else {
+        // Stirring target above bowl center (circle)
+        const r = staticPose ? 0.0 : 0.085;
+        targetWorld = actorAnim.mother.workTarget.clone().add(new THREE.Vector3(Math.cos(t*2.0)*r, 0.07, Math.sin(t*2.0)*r));
+      }
       const targetLocal = group.worldToLocal(targetWorld.clone());
 
       // Vector from shoulder (local) to target (local)
@@ -1485,13 +1572,45 @@ function animate() {
       // Apply pose once or keep steady each frame (no oscillation)
       shoulder.rotation.x = shoulderPitch;
       elbow.rotation.x = elbowAngle;
-      wrist.rotation.set(-1.3, 0, 0); // straight, pitched down toward bowl
+      // Wrist pitched down; slight yaw if moving
+      wrist.rotation.set(-1.3, staticPose ? 0 : Math.sin(t*2.0)*0.25, 0);
     }
+  }
+
+  // Left hand: rest on countertop near bowl with tiny drift, simple IK
+  if (actorAnim.mother.leftArmPivot && actorAnim.mother.leftElbowPivot && actorAnim.mother.leftWristPivot && actorAnim.mother.group && actorAnim.mother.workTarget) {
+    const L1 = actorAnim.mother.upperLen || 0.38;
+    const L2 = actorAnim.mother.foreLen || 0.34;
+    const group = actorAnim.mother.group;
+    const shoulder = actorAnim.mother.leftArmPivot;
+    const elbow = actorAnim.mother.leftElbowPivot;
+    const wrist = actorAnim.mother.leftWristPivot;
+  const tt = now;
+  const drift = new THREE.Vector3(Math.sin(tt*0.9)*0.01, 0, Math.cos(tt*0.8)*0.008);
+  const restWorld = actorAnim.mother.workTarget.clone().add(new THREE.Vector3(-0.18, (actorAnim.mother.counterY || 1.6) + 0.02, 0.0)).add(drift);
+    const restLocal = group.worldToLocal(restWorld.clone());
+    const shoulderLocal = shoulder.position.clone();
+    const v = restLocal.clone().sub(shoulderLocal);
+    const yaw = Math.atan2(v.x, v.z);
+    shoulder.rotation.y = yaw;
+    const s = Math.hypot(v.x, v.z);
+    const dy = v.y;
+    let d = Math.hypot(s, dy);
+    d = Math.min(L1 + L2 - 0.001, Math.max(0.05, d));
+    const angleToTarget = Math.atan2(dy, s);
+    const cosElb = THREE.MathUtils.clamp((L1*L1 + L2*L2 - d*d) / (2*L1*L2), -1, 1);
+    const elbowAngle = Math.PI - Math.acos(cosElb);
+    const cosSh = THREE.MathUtils.clamp((d*d + L1*L1 - L2*L2) / (2*d*L1), -1, 1);
+    const shoulderInner = Math.acos(cosSh);
+    const shoulderPitch = angleToTarget + shoulderInner;
+    shoulder.rotation.x = shoulderPitch;
+    elbow.rotation.x = elbowAngle;
+    wrist.rotation.set(0, 0, 0);
   }
 
   // Steam rising animation
   if (actorAnim.steam.length) {
-    const dt = 0.016; // approx frame step
+    const dt = 0.016; // approx frame step (separate from global dt; good enough for steam)
     actorAnim.steam.forEach(s => {
       const wobble = Math.sin(performance.now()*0.002 + s.userData.phase) * 0.0025;
       s.position.y += s.userData.speed * dt;
@@ -1506,13 +1625,84 @@ function animate() {
     });
   }
 
-  // Kids: tiny head nod and one hand-to-mouth nibble motion
+  // Kids: eating cycles and blinking
   if (actorAnim.kids.length) {
-    const t = performance.now() * 0.001;
+    const t = now;
     actorAnim.kids.forEach((k, idx) => {
-      if (k.headPivot) k.headPivot.rotation.x = Math.sin(t * (1.2 + idx*0.1)) * 0.06;
-      if (k.handPivot) k.handPivot.rotation.x = -0.2 + Math.sin(t * (1.5 + idx*0.3)) * 0.25;
+      // initialize defaults
+      if (!k.state) { k.state = 'reach'; k.stateTime = 0; }
+      k.stateTime += dt;
+
+      const reachDur = 1.2, toMouthDur = 1.0, chewDur = 1.2, returnDur = 1.0, idleDur = 1.2;
+      const downAngle = -0.35, mouthAngle = 0.45;
+
+      // Head idle + chew nod
+      if (k.headPivot) {
+        const chewing = k.state === 'chew';
+        const chew = chewing ? Math.sin(k.stateTime * 6.0) * 0.05 : 0;
+        k.headPivot.rotation.x = Math.sin(t * (1.0 + idx*0.07)) * 0.04 + chew;
+      }
+
+      // State machine for eating
+      if (k.handPivot) {
+        if (k.state === 'reach') {
+          const p = Math.min(1, k.stateTime / reachDur);
+          // move down toward plate
+          k.handPivot.rotation.x = downAngle * (0.6 + 0.4*Math.sin(p*Math.PI*0.5));
+          if (p >= 1) {
+            // pick a snack from plate if available
+            if (k.plateSnacks && k.plateSnacks.length) {
+              const pick = k.plateSnacks.find(s => s.visible !== false);
+              if (pick) pick.visible = false; // hide on plate
+            }
+            if (k.snack) { k.snack.visible = true; k.snack.scale.set(1,1,1); }
+            k.state = 'toMouth'; k.stateTime = 0;
+          }
+        } else if (k.state === 'toMouth') {
+          const p = Math.min(1, k.stateTime / toMouthDur);
+          k.handPivot.rotation.x = downAngle + (mouthAngle - downAngle) * p;
+          if (p >= 1) { k.state = 'chew'; k.stateTime = 0; }
+        } else if (k.state === 'chew') {
+          const p = Math.min(1, k.stateTime / chewDur);
+          // hold near mouth with small wobble
+          k.handPivot.rotation.x = mouthAngle + Math.sin(p * Math.PI * 3) * 0.05;
+          if (k.snack) {
+            const s = Math.max(0, 1 - p); k.snack.scale.setScalar(0.4 + 0.6*s);
+            if (p >= 1) { k.snack.visible = false; }
+          }
+          if (p >= 1) { k.state = 'return'; k.stateTime = 0; }
+        } else if (k.state === 'return') {
+          const p = Math.min(1, k.stateTime / returnDur);
+          k.handPivot.rotation.x = mouthAngle + (downAngle - mouthAngle) * p;
+          if (p >= 1) { k.state = 'idle'; k.stateTime = 0; }
+        } else if (k.state === 'idle') {
+          // small idle motion for a beat before next bite
+          k.handPivot.rotation.x = downAngle + Math.sin(k.stateTime * 3.0) * 0.05;
+          if (k.stateTime > idleDur) { k.state = 'reach'; k.stateTime = 0; }
+        }
+      }
+
+      // simple blink: briefly hide eyes every ~4-6s, offset per kid
+      if (k.group && k.group.children) {
+        const eyes = k.group.children.filter(m => m.geometry && m.geometry.type === 'SphereGeometry' && m.material && m.material.color && m.material.color.getHex && m.material.color.getHex() === 0x2a2a2a);
+        const blinkT = (Math.sin(t*0.2 + idx)*0.5 + 0.5); // 0..1
+        const blink = blinkT > 0.95; // brief
+        eyes.forEach(e => e.visible = !blink);
+      }
     });
+  }
+
+  // Ambient: Under-cabinet light subtle pulsing and coffee display blink
+  {
+    const t = performance.now()*0.001;
+    if (actorAnim.underLight && actorAnim.underLight.material) {
+      const base = 0.85; const amp = 0.1; const val = base + Math.sin(t*0.8)*amp;
+      actorAnim.underLight.material.emissiveIntensity = val;
+    }
+    if (actorAnim.cmDisplay && actorAnim.cmDisplay.material) {
+      const on = (Math.floor(t)%2)===0; // blink every ~1s
+      actorAnim.cmDisplay.material.emissiveIntensity = on ? 0.7 : 0.2;
+    }
   }
 
   // Render the scene from the camera's perspective

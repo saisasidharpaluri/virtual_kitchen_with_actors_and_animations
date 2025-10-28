@@ -62,16 +62,25 @@ Customization hints (in `assets/js/main.js`):
 
 ### Latest updates (October 2025)
 
+- Mother now stirs the bowl with her right hand in a gentle circular motion and occasionally lifts the spatula to her mouth for a quick taste; her left hand rests naturally on the countertop.
+- Kids now actually “eat”: each child reaches toward their plate, picks up a snack, brings it to their mouth, “chews” (the snack shrinks/disappears), returns the hand, idles briefly, and repeats.
 - Mother stands clearly in front of the opposite-side counter and faces the cooking area.
 - Indian skin tones applied to mother and kids; more human facial features for mother (eyes, ears, nose, mouth) and hair (cap, bun, side strands).
-- Arm control switched to an IK-based pose targeting a fixed point just above the bowl. Hand/wrist kept straight and steady (no stirring motion) as requested.
 - Additional cooking context: mixing bowl with ingredients, chopping board with veggies, measuring cup on the counter.
 
-Tweak the static pose/target (in `assets/js/main.js`):
+Tweak pose and animation (in `assets/js/main.js`):
 
-- Fixed target height above bowl: search for `workTarget` and adjust the `+ new THREE.Vector3(0, 0.07, 0)` value.
+- Toggle stirring: set `actorAnim.mother.staticPose = true` to stop stirring (right arm holds a straight pose toward the bowl). Set to `false` to enable stirring.
+- Stirring radius/speed: look for the comment `Mother arm control: right hand stirs, left hand rests` inside `animate()` and adjust the radius `r` and the time multiplier.
+- Stirring height above bowl: adjust the `+ new THREE.Vector3(Math.cos(...)*r, 0.07, Math.sin(...)*r)` value (the `0.07` sets the hand height above the bowl center).
+- Left-hand rest offset: in the same block, tweak the offset added to `workTarget` (defaults to something like `(-0.18, counterY+0.02, 0.0)`) to place her palm closer/farther/left/right of the bowl.
 - Move the bowl if needed: look for `addCookingContainers()` and change the `bowl.position.set(...)` coordinates.
-- Re-enable motion: set `actorAnim.mother.staticPose = false` and (optionally) restore the circular stir target.
+
+Kids’ eating loop controls (in `animate()` under "kids"):
+
+- Durations: adjust `reachDur`, `toMouthDur`, `chewDur`, `returnDur`, `idleDur` to speed up or slow down the cycle.
+- Hand angles: tweak `downAngle` and `mouthAngle` to refine reach and eating pose.
+- Plate snacks: each plate returns a list of snack meshes; when a kid reaches the plate, one visible snack is hidden from the plate and the hand-held snack is shown.
 
 ## Technical notes
 
